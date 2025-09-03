@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hanz Simulator — Saham Demo</title>
+  <link rel="icon" type="image/x-icon" href="ft.png">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+  <style>
+    /* ---------------- Global ---------------- */
+    :root{
+      --bg: #07121a;
+      --card: linear-gradient(180deg,#0f1b26 0%, #0b1620 100%);
+      --muted: #9fb0c7;
+      --accent: #f6c85f;
+      --accent-2: #58a6ff;
+      --glass: rgba(255,255,255,0.03);
+      --success: #2ea043;
+      --danger: #f44753;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background: radial-gradient(1200px 400px at 10% 10%, rgba(9,20,30,0.6), transparent),
+                  radial-gradient(900px 300px at 90% 90%, rgba(8,12,20,0.6), transparent),
+                  var(--bg);
+      color: #e6eef6;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding: 24px;
+    }
+
+    /* ---------------- App layout ---------------- */
+    .app {
+      display: grid;
+      grid-template-columns: 320px 1fr 360px;
+      gap: 18px;
+      align-items: start;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(3,8,15,0.6);
+      border: 1px solid rgba(255,255,255,0.02);
+    }
+    .header {
+      display:flex; align-items:center; gap:12px;
+    }
+    .logo {
+      font-weight:800; color:var(--accent); font-size:18px;
+    }
+    .subtitle { color:var(--muted); font-size:13px; }
+
+    /* ---------------- Left column ---------------- */
+    .account-balance {
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    .balance-left {
+      display:flex; flex-direction:column;
+    }
+    .balance-amount {
+      font-size:20px; font-weight:800; color:var(--accent);
+    }
+    .small { font-size:13px; color:var(--muted) }
+
+    .watchlist { margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+    .watch-item {
+      display:flex; justify-content:space-between; align-items:center; padding:10px; border-radius:8px; cursor:pointer;
+      background: linear-gradient(90deg, rgba(255,255,255,0.01), transparent);
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    .watch-item:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.6); }
+    .watch-item.active { box-shadow: inset 0 0 0 1px rgba(246,200,95,0.06); background: linear-gradient(90deg, rgba(246,200,95,0.06), rgba(246,200,95,0.01)); }
+
+    /* ---------------- Center (Chart) ---------------- */
+    .chart-top {
+      display:flex; justify-content:space-between; align-items:flex-start;
+      gap:12px;
+    }
+    .symbol-info { display:flex; flex-direction:column; }
+    .symbol-name { font-weight:900; font-size:20px; }
+    .live-price { font-weight:800; font-size:18px; color:var(--accent-2); margin-top:6px; }
+    .controls { display:flex; gap:8px; align-items:center; margin-top:12px; }
+
+    #chartWrap { height: 420px; margin-top:12px; border-radius:10px; overflow:hidden; background: linear-gradient(180deg, rgba(255,255,255,0.01), transparent); padding:12px; }
+
+    /* ---------------- Right column (Trade panel) ---------------- */
+    .trade-row { display:flex; gap:8px; align-items:center; margin-top:10px; }
+    .trade-btn { padding:12px 14px; border-radius:10px; border:none; cursor:pointer; font-weight:800; }
+    .trade-btn.buy { background: linear-gradient(90deg,#19b15a,#2ea043); color:#041219; }
+    .trade-btn.sell { background: linear-gradient(90deg,#ff6b6b,#f44753); color:white; }
+
+    .section-title { display:flex; justify-content:space-between; align-items:center; }
+    .pos-table { width:100%; border-collapse:collapse; margin-top:8px; }
+    .pos-table th, .pos-table td { text-align:left; padding:8px; font-size:13px; border-bottom: 1px dashed rgba(255,255,255,0.02); }
+    .history { max-height:260px; overflow:auto; margin-top:8px; }
+
+    /* ---------------- Modal ---------------- */
+    .modal-backdrop {
+      position:fixed; inset:0; display:none; align-items:center; justify-content:center; background: rgba(3,6,12,0.6); z-index:1500;
+    }
+    .modal { background: var(--card); width: 420px; padding:18px; border-radius:10px; box-shadow:0 14px 50px rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.02); }
+    .modal .row { margin-top:12px; display:flex; gap:8px; align-items:center; }
+    .modal .actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+
+    /* small helpers */
+    .muted { color:var(--muted); font-size:13px; }
+    .pill { padding:6px 8px; border-radius:999px; background:var(--glass); color:var(--muted); font-weight:700; font-size:13px; }
+    .green { color:var(--success); font-weight:800 }
+    .red { color:var(--danger); font-weight:800 }
+
+    /* responsive */
+    @media (max-width: 1100px) {
+      .app { grid-template-columns: 1fr; padding:16px; gap:12px; }
+      #chartWrap { height: 360px; }
+    }
+  </style>
+</head>
+<body>
+  <div style="max-width:1400px;margin:0 auto">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px">
+      <div>
+        <div class="logo">Hanz Simulator — Saham Demo</div>
+        <div class="small">Legal Buat Senang Senang Semata aja yahhh - Created By HanzSimulator</div>
+      </div>
+      <div style="display:flex; gap:12px; align-items:center">
+        <div class="small">Mode</div>
+        <div class="pill" id="modePill">Demo</div>
+      </div>
+    </div>
+
+    <div class="app">
+      <!-- LEFT: Account & Watchlist -->
+      <div class="card">
+        <div class="header">
+          <div>
+            <div style="font-weight:800">Account</div>
+            <div class="small"> wallet</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px" class="account-balance">
+          <div class="balance-left">
+            <div class="small">Saldo </div>
+            <div class="balance-amount" id="balanceAmount">Rp 100.000.000</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end">
+            <button class="trade-btn" id="depositBtn" style="background:#0f1720;border:1px solid rgba(255,255,255,0.04);color:var(--accent)">Deposit</button>
+            <button class="trade-btn" id="withdrawBtn" style="background:#0f1720;border:1px solid rgba(255,255,255,0.04);color:var(--muted)">Withdraw</button>
+          </div>
+        </div>
+
+        <div style="margin-top:14px" class="small">Watchlist</div>
+        <div class="watchlist" id="watchlist">
+          <!-- items injected -->
+        </div>
+
+        <div style="margin-top:12px" class="small">Quick actions</div>
+        <div style="display:flex; gap:8px; margin-top:8px">
+          <button id="resetBtn" class="trade-btn" style="background:transparent;border:1px solid rgba(255,255,255,0.04); color:var(--muted)">Reset Data</button>
+          <button id="exportBtn" class="trade-btn" style="background:transparent;border:1px solid rgba(255,255,255,0.04); color:var(--accent)">Export CSV</button>
+        </div>
+      </div>
+
+      <!-- CENTER: Chart -->
+      <div class="card">
+        <div class="chart-top">
+          <div class="symbol-info">
+            <div class="symbol-name" id="symbolName">BBRI.JK</div>
+            <div class="small">Simulated feed — 1s tick (fake data)</div>
+            <div class="small" id="timeInfo" style="margin-top:6px">Last update — --:--:--</div>
+          </div>
+          <div style="text-align:right">
+            <div class="live-price" id="livePrice">—</div>
+            <div class="small" id="changeInfo">—</div>
+            <div style="margin-top:8px" class="small">MA: <span id="maInfo">—</span></div>
+          </div>
+        </div>
+
+        <div class="controls" style="margin-top:8px">
+          <label class="small">Timeframe</label>
+          <select id="timeframeSelect" style="padding:8px;border-radius:8px;background:transparent;color:inherit">
+            <option value="1s">1s (demo)</option>
+            <option value="5s">5s (slower)</option>
+            <option value="1m" disabled>1m (disabled in demo)</option>
+          </select>
+
+          <label class="small" style="margin-left:8px">MA length</label>
+          <input id="maLen" type="number" value="20" min="3" style="width:80px;padding:8px;border-radius:8px" />
+        </div>
+
+        <div id="chartWrap">
+          <canvas id="priceChart"></canvas>
+        </div>
+      </div>
+
+      <!-- RIGHT: Trade panel -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <div>
+            <div style="font-weight:800">Trade</div>
+            <div class="small">Place virtual orders</div>
+          </div>
+          <div class="small">1 lot = 100 lembar</div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="small">Instrument</label>
+          <select id="instrumentSelect" style="width:100%; margin-top:8px; padding:8px; border-radius:8px;">
+            <!-- Indonesia (IDX) -->
+            <option value="BBRI.JK">BBRI.JK</option>
+            <option value="BBCA.JK">BBCA.JK</option>
+            <option value="TLKM.JK">TLKM.JK</option>
+            <option value="GOTO.JK">GOTO.JK</option>
+            <option value="ANTM.JK">ANTM.JK</option>
+            <option value="ASII.JK">ASII.JK</option>
+            <option value="UNVR.JK">UNVR.JK</option>
+
+            <!-- USA (NYSE/NASDAQ) -->
+            <option value="AAPL.US">AAPL.US</option>
+            <option value="MSFT.US">MSFT.US</option>
+            <option value="GOOG.US">GOOG.US</option>
+            <option value="AMZN.US">AMZN.US</option>
+            <option value="TSLA.US">TSLA.US</option>
+            <option value="NVDA.US">NVDA.US</option>
+            <option value="JPM.US">JPM.US</option>
+
+            <!-- Europe (Germany) -->
+            <option value="DAI.DE">DAI.DE</option>
+            <option value="BMW.DE">BMW.DE</option>
+            <option value="SIE.DE">SIE.DE</option>
+
+            <!-- Europe (UK) -->
+            <option value="HSBA.UK">HSBA.UK</option>
+            <option value="BP.UK">BP.UK</option>
+            <option value="ULVR.UK">ULVR.UK</option>
+
+            <!-- Asia (Japan) -->
+            <option value="SNE.JP">SNE.JP</option>
+            <option value="TM.JP">TM.JP</option>
+            <option value="7203.JP">7203.JP</option>
+
+            <!-- Asia (China) -->
+            <option value="BABA.CN">BABA.CN</option>
+            <option value="TCEHY.CN">TCEHY.CN</option>
+            <option value="PDD.CN">PDD.CN</option>
+          </select>
+
+          <div class="trade-row" style="margin-top:12px">
+            <div style="flex:1">
+              <label class="small">Lots</label>
+              <input id="lotsInput" type="number" value="1" min="1" style="width:100%; padding:8px; border-radius:8px" />
+            </div>
+            <div style="width:110px">
+              <label class="small">Order type</label>
+              <select id="orderType" style="width:100%; padding:8px; border-radius:8px">
+                <option value="market">Market</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- NEW: TP/SL Inputs -->
+          <div class="trade-row" style="margin-top:12px">
+            <div style="flex:1">
+              <label class="small">Take Profit (Rp)</label>
+              <input id="tpInput" type="number" placeholder="Harga TP" style="width:100%; padding:8px; border-radius:8px" />
+            </div>
+            <div style="flex:1">
+              <label class="small">Stop Loss (Rp)</label>
+              <input id="slInput" type="number" placeholder="Harga SL" style="width:100%; padding:8px; border-radius:8px" />
+            </div>
+          </div>
+          <!-- END NEW -->
+
+          <div style="display:flex; gap:8px; margin-top:12px">
+            <button id="buyBtn" class="trade-btn buy" style="flex:1">BUY</button>
+            <button id="sellBtn" class="trade-btn sell" style="flex:1">SELL</button>
+          </div>
+        </div>
+
+        <div class="hr" style="height:1px; background:rgba(255,255,255,0.03); margin:12px 0"></div>
+
+        <div class="section-title">
+          <div class="small">Portfolio (active)</div>
+          <div class="small" id="unrealizedPnlDisplay">Unrealized P/L</div> <!-- Added ID for dynamic update -->
+        </div>
+
+        <table class="pos-table" style="margin-top:8px">
+          <thead><tr><th>Symbol</th><th>Lots</th><th>Avg (Rp)</th><th>P/L</th></tr></thead>
+          <tbody id="positionsTbody"></tbody>
+        </table>
+
+        <div class="hr"></div>
+
+        <div class="small">History</div>
+        <div class="history" id="historyList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deposit / Withdraw Modal -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div style="font-weight:900; font-size:18px" id="modalTitle">Deposit</div>
+      <div class="small" id="modalSubtitle">Tambah saldo virtual</div>
+
+      <div class="row">
+        <label class="small">Jumlah (Rp)</label>
+        <input id="modalAmount" type="number" placeholder="contoh: 1.000.000" style="flex:1; padding:8px; border-radius:8px" />
+      </div>
+
+      <!-- NEW: Quick Deposit Options -->
+      <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+        <button class="trade-btn quick-deposit-btn" data-amount="100000" style="background:#0f1720;border:1px solid rgba(255,255,255,0.04);color:var(--muted); flex:1; min-width: calc(50% - 4px);">100 Ribu</button>
+        <button class="trade-btn quick-deposit-btn" data-amount="500000" style="background:#0f1720;border:1px solid rgba(255,255,255,0.04);color:var(--muted); flex:1; min-width: calc(50% - 4px);">500 Ribu</button>
+        <button class="trade-btn quick-deposit-btn" data-amount="1000000" style="background:#0f1720;border:1px solid rgba(255,255,255,0.04);color:var(--muted); flex:1; min-width: calc(50% - 4px);">1 Juta</button>
+        <button class="trade-btn quick-deposit-btn" data-amount="10000000" style="background:#0f1720;border:1px solid rgba(255,255,255,0.04);color:var(--muted); flex:1; min-width: calc(50% - 4px);">10 Juta</button>
+        <button class="trade-btn quick-deposit-btn" data-amount="100000000" style="background:#0f1720;border:1px solid rgba(255,255,255,0.04);color:var(--muted); flex:1; min-width: calc(50% - 4px);">100 Juta</button>
+        <button class="trade-btn quick-deposit-btn" data-amount="1000000000" style="background:#0f1720;border:1px solid rgba(255,255,255,0.04);color:var(--muted); flex:1; min-width: calc(50% - 4px);">1 Miliar</button>
+      </div>
+      <!-- END NEW -->
+
+      <div class="actions">
+        <button id="modalCancel" class="trade-btn" style="background:transparent;border:1px solid rgba(255,255,255,0.04); color:var(--muted)">Batal</button>
+        <button id="modalConfirm" class="trade-btn" style="background:var(--accent); color:#071226">Konfirmasi</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ----------------------------
+   App logic (Premium Demo)
+   - Fake market (random walk)
+   - UI: buy/sell, deposit/withdraw, portfolio, history
+   - Indicators: MA overlay
+   - Persistence: localStorage
+   - NEW: Take Profit (TP) / Stop Loss (SL)
+   - NEW: Real-time P/L affecting virtual balance
+   - NEW: More instruments (Asia, Europe, US)
+   - NEW: Random price spikes for higher volatility
+   - NEW: More realistic starting prices and varied volatility
+   - NEW: Adjusted low-priced stocks to higher values
+   - NEW: Quick deposit options
+   - NEW: Deposit/Withdraw requests pending admin approval
+   ---------------------------- */
+
+const LS = {
+  BAL: 'premium_sim_balance_v1',
+  POS: 'premium_sim_positions_v1',
+  TR: 'premium_sim_trades_v1', // Approved trades and regular trades
+  REQ: 'premium_sim_requests_v1', // Pending deposit/withdraw requests
+  PRICES: 'premium_sim_prices_v1'
+};
+
+const DEFAULT_BAL = 100_000_000;
+const INSTRUMENTS = [
+  // Indonesia (IDX)
+  'BBRI.JK', 'BBCA.JK', 'TLKM.JK', 'GOTO.JK', 'ANTM.JK', 'ASII.JK', 'UNVR.JK',
+
+  // USA (NYSE/NASDAQ) - Fiktif .US
+  'AAPL.US', 'MSFT.US', 'GOOG.US', 'AMZN.US', 'TSLA.US', 'NVDA.US', 'JPM.US',
+
+  // Europe (e.g., Germany .DE, UK .UK) - Fiktif
+  'DAI.DE', 'BMW.DE', 'SIE.DE', // Germany (Dax)
+  'HSBA.UK', 'BP.UK', 'ULVR.UK', // UK (FTSE)
+
+  // Asia (e.g., Japan .JP, China .CN) - Fiktif
+  'SNE.JP', 'TM.JP', '7203.JP', // Japan (Nikkei)
+  'BABA.CN', 'TCEHY.CN', 'PDD.CN' // China (Hang Seng/Shanghai)
+];
+
+/* state */
+let balance = Number(localStorage.getItem(LS.BAL)) || DEFAULT_BAL;
+// Updated positions structure: { symbol: { lots, avg, entryPrice, tpPrice, slPrice, currentPnl, side } }
+let positions = JSON.parse(localStorage.getItem(LS.POS)) || {};
+let trades = JSON.parse(localStorage.getItem(LS.TR)) || []; // newest first
+let requests = JSON.parse(localStorage.getItem(LS.REQ)) || []; // NEW: Pending requests
+let lastPrices = JSON.parse(localStorage.getItem(LS.PRICES)) || {}; // {symbol: price}
+let activeSymbol = document.getElementById('instrumentSelect').value || INSTRUMENTS[0];
+let priceSeries = {}; // per-symbol arrays of {t, v}
+let tickTimer = null;
+let chart = null;
+
+/* UI refs */
+const balanceAmountEl = document.getElementById('balanceAmount');
+const watchlistEl = document.getElementById('watchlist');
+const symbolNameEl = document.getElementById('symbolName');
+const livePriceEl = document.getElementById('livePrice');
+const changeInfoEl = document.getElementById('changeInfo');
+const positionsTbody = document.getElementById('positionsTbody');
+const historyList = document.getElementById('historyList');
+const modalBackdrop = document.getElementById('modalBackdrop');
+const modalTitle = document.getElementById('modalTitle');
+const modalSubtitle = document.getElementById('modalSubtitle');
+const modalAmount = document.getElementById('modalAmount');
+const modalConfirm = document.getElementById('modalConfirm');
+const modalCancel = document.getElementById('modalCancel');
+const unrealizedPnlDisplay = document.getElementById('unrealizedPnlDisplay'); // New ref
+// NEW: Dashboard UI refs
+const welcomeMessageEl = document.getElementById('welcomeMessage');
+const dashboardBalanceEl = document.getElementById('dashboardBalance');
+const dashboardUnrealizedPnlEl = document.getElementById('dashboardUnrealizedPnl');
+const dashboardTotalPortfolioEl = document.getElementById('dashboardTotalPortfolio');
+const newsListEl = document.getElementById('newsList');
+const popularStocksListEl = document.getElementById('popularStocksList');
+const timeframeSelect = document.getElementById('timeframeSelect');
+const maLenInput = document.getElementById('maLen');
+const intervalInput = document.getElementById('timeframeSelect'); // not used for demo
+
+/* helpers */
+// Modified fmtRp to ensure consistent formatting for large numbers
+const fmtRp = v => {
+  if (typeof v !== 'number') return v;
+  // Use toLocaleString with 'id-ID' locale for Indonesian number formatting
+  // This will add thousands separators (dots) and handle decimals (commas)
+  return v.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+};
+const nowStr = () => new Date().toLocaleString();
+
+/* init seed data for symbols */
+function seedMarket() {
+  INSTRUMENTS.forEach(sym => {
+    if (!priceSeries[sym] || !priceSeries[sym].length) {
+      let base = 1000; // Default base if no specific rule matches
+
+      // Adjust base price based on market/symbol for more realistic starting points
+      // These values are illustrative and can be adjusted to match real market prices (converted to IDR)
+      if (sym.endsWith('.JK')) { // Indonesia stocks
+        if (sym.startsWith('BBRI')) base = 5500;
+        else if (sym.startsWith('BBCA')) base = 9500;
+        else if (sym.startsWith('TLKM')) base = 3900;
+        // Adjusted GOTO and ANTM to higher values
+        else if (sym.startsWith('GOTO')) base = 5000; // Was 150, now 5000
+        else if (sym.startsWith('ANTM')) base = 10000; // Was 1800, now 10000
+        else if (sym.startsWith('ASII')) base = 5800;
+        else if (sym.startsWith('UNVR')) base = 3200;
+      } else if (sym.endsWith('.US')) { // US stocks (simulated as Rp for display)
+        if (sym.startsWith('AAPL')) base = 2500000; // Approx $160 * 15500
+        else if (sym.startsWith('MSFT')) base = 5500000; // Approx $350 * 15500
+        else if (sym.startsWith('GOOG')) base = 2200000; // Approx $140 * 15500
+        else if (sym.startsWith('AMZN')) base = 2300000; // Approx $150 * 15500
+        else if (sym.startsWith('TSLA')) base = 3800000; // Approx $250 * 15500
+        else if (sym.startsWith('NVDA')) base = 7500000; // Approx $480 * 15500
+        else if (sym.startsWith('JPM')) base = 2300000; // Approx $150 * 15500
+      } else if (sym.endsWith('.DE')) { // German stocks (simulated as Rp for display)
+        if (sym.startsWith('DAI')) base = 1000000; // Approx €65 * 16500
+        else if (sym.startsWith('BMW')) base = 1500000; // Approx €90 * 16500
+        else if (sym.startsWith('SIE')) base = 2700000; // Approx €160 * 16500
+      } else if (sym.endsWith('.UK')) { // UK stocks (simulated as Rp for display)
+        if (sym.startsWith('HSBA')) base = 100000; // Approx £6 * 19000
+        else if (sym.startsWith('BP')) base = 90000; // Approx £5 * 19000
+        else if (sym.startsWith('ULVR')) base = 750000; // Approx £40 * 19000
+      } else if (sym.endsWith('.JP')) { // Japanese stocks (simulated as Rp for display)
+        if (sym.startsWith('SNE')) base = 1800000; // Approx ¥12000 * 100
+        else if (sym.startsWith('TM')) base = 350000; // Approx ¥2400 * 100
+        else if (sym.startsWith('7203')) base = 350000; // Toyota
+      } else if (sym.endsWith('.CN')) { // Chinese stocks (simulated as Rp for display)
+        if (sym.startsWith('BABA')) base = 1200000; // Approx HKD 80 * 2000
+        else if (sym.startsWith('TCEHY')) base = 5000000; // Approx HKD 300 * 2000
+        else if (sym.startsWith('PDD')) base = 1500000; // Approx HKD 100 * 2000
+      }
+
+      let p = lastPrices[sym] || Math.round(base * (0.98 + Math.random() * 0.04)); // +/- 2% from base
+      const arr = [];
+      // seed 120 points
+      for (let i = 120; i > 0; i--) {
+        const t = Date.now() - i * 1000;
+        // Initial random walk for seeding, can be more stable
+        p = +(p * (1 + (Math.random()-0.5)*0.005)).toFixed(2); // Smaller initial fluctuations
+        arr.push({ t, v: p });
+      }
+      priceSeries[sym] = arr;
+      lastPrices[sym] = arr[arr.length-1].v;
+    }
+  });
+  persistPrices();
+}
+
+/* persist helpers */
+function persistAll() {
+  localStorage.setItem(LS.BAL, String(balance));
+  localStorage.setItem(LS.POS, JSON.stringify(positions));
+  localStorage.setItem(LS.TR, JSON.stringify(trades));
+  localStorage.setItem(LS.REQ, JSON.stringify(requests)); // NEW: Persist requests
+  persistPrices();
+}
+function persistPrices() {
+  localStorage.setItem(LS.PRICES, JSON.stringify(lastPrices));
+}
+
+/* UI renderers */
+function renderWatchlist() {
+  watchlistEl.innerHTML = '';
+  INSTRUMENTS.forEach(sym => {
+    const item = document.createElement('div');
+    item.className = 'watch-item' + (sym === activeSymbol ? ' active' : '');
+    item.onclick = () => { activeSymbol = sym; document.getElementById('instrumentSelect').value = sym; onSymbolChange(sym); };
+    item.innerHTML = `<div style="display:flex;flex-direction:column">
+      <div style="font-weight:700">${sym}</div>
+      <div class="small">Demo</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-weight:800">${lastPrices[sym] ? 'Rp ' + fmtRp(Math.round(lastPrices[sym])) : '-'}</div>
+      <div class="small" id="wl-chg-${sym}"></div>
+    </div>`;
+    watchlistEl.appendChild(item);
+  });
+}
+
+/* positions & history render */
+function renderPositions() {
+  positionsTbody.innerHTML = '';
+  let totalUnrealizedPnl = 0;
+
+  INSTRUMENTS.forEach(sym => {
+    // Ensure default values for new properties
+    const p = positions[sym] || { lots: 0, avg: 0, entryPrice: 0, tpPrice: 0, slPrice: 0, currentPnl: 0, side: '' };
+    const cur = lastPrices[sym] || 0;
+
+    // Calculate current P/L for display
+    if (p.lots > 0 && cur > 0) {
+        let pnl = 0;
+        if (p.side === 'buy') {
+            pnl = (cur - p.entryPrice) * p.lots * 100;
+        } else if (p.side === 'sell') {
+            pnl = (p.entryPrice - cur) * p.lots * 100;
+        }
+        p.currentPnl = pnl; // Update current P/L in the position object
+        totalUnrealizedPnl += pnl;
+    } else {
+        p.currentPnl = 0;
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="padding:8px">${sym}</td>
+                    <td style="padding:8px">${p.lots}</td>
+                    <td style="padding:8px">${p.avg ? 'Rp ' + fmtRp(Math.round(p.avg)) : '-'}</td>
+                    <td style="padding:8px">${p.currentPnl >= 0 ? '<span class="green">+' + fmtRp(p.currentPnl) + '</span>' : '<span class="red">' + fmtRp(p.currentPnl) + '</span>'}</td>`;
+    positionsTbody.appendChild(tr);
+  });
+
+  // Update the "Unrealized P/L" display in the section title
+  if (unrealizedPnlDisplay) {
+      unrealizedPnlDisplay.innerHTML = `Unrealized P/L: ${totalUnrealizedPnl >= 0 ? '<span class="green">+' + fmtRp(totalUnrealizedPnl) + '</span>' : '<span class="red">' + fmtRp(totalUnrealizedPnl) + '</span>'}`;
+  }
+}
+
+function renderHistory() {
+  historyList.innerHTML = '';
+  trades.slice(0,200).forEach(t => {
+    const el = document.createElement('div');
+    el.style.padding = '8px';
+    el.style.borderBottom = '1px dashed rgba(255,255,255,0.03)';
+    let pnlInfo = '';
+    if (t.realizedPnl !== undefined) {
+        pnlInfo = ` • P/L: ${t.realizedPnl >= 0 ? '<span class="green">+' + fmtRp(t.realizedPnl) + '</span>' : '<span class="red">' + fmtRp(t.realizedPnl) + '</span>'}`;
+    }
+    let closedByInfo = t.closedBy ? ` (${t.closedBy})` : '';
+
+    el.innerHTML = `<div style="display:flex;justify-content:space-between"><div><strong>${t.side.toUpperCase()}</strong> <span class="small"> ${t.symbol}</span></div><div class="small">${t.time}</div></div>
+      <div class="small">Lots: ${t.lots} • Harga: Rp ${fmtRp(Math.round(t.price))}${pnlInfo}${closedByInfo}</div>`;
+    historyList.appendChild(el);
+  });
+}
+
+/* Chart initialization */
+function initChart() {
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: priceSeries[activeSymbol].map(d => new Date(d.t).toLocaleTimeString()),
+      datasets: [
+        { label: 'Price', data: priceSeries[activeSymbol].map(d=>d.v), borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,0.06)', fill: true, tension: 0.18, pointRadius:0 },
+        { label: 'MA', data: computeMA(activeSymbol), borderColor: '#f6c85f', borderDash: [6,4], pointRadius:0, fill:false }
+      ]
+    },
+    options: {
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins: { legend: { labels: { color: '#e6eef6' } } },
+      scales: {
+        x: { ticks: { color: '#9fb0c7' } },
+        y: { ticks: { color: '#9fb0c7' } }
+      },
+      interaction: { intersect: false, mode: 'index' }
+    }
+  });
+}
+
+/* compute moving average for the current active symbol */
+function computeMA(sym) {
+  const len = Math.max(3, Number(document.getElementById('maLen').value) || 20);
+  const arr = priceSeries[sym] || [];
+  const res = [];
+  for (let i=0;i<arr.length;i++) {
+    if (i < len-1) { res.push(null); continue; }
+    let sum = 0;
+    for (let j=i-len+1;j<=i;j++) sum += arr[j].v;
+    res.push( +(sum/len).toFixed(2) );
+  }
+  return res;
+}
+
+/* push new price to series and update chart */
+function pushPrice(sym, price) {
+  const series = priceSeries[sym];
+  series.push({ t: Date.now(), v: price });
+  if (series.length > 500) series.shift();
+  lastPrices[sym] = price;
+  persistPrices();
+  if (sym === activeSymbol) {
+    // update chart dataset
+    chart.data.labels = series.map(d => new Date(d.t).toLocaleTimeString());
+    chart.data.datasets[0].data = series.map(d => d.v);
+    chart.data.datasets[1].data = computeMA(sym);
+    chart.update();
+    livePriceEl.innerText = 'Rp ' + fmtRp(Math.round(price));
+    symbolNameEl.innerText = sym;
+    document.getElementById('maInfo').innerText = chart.data.datasets[1].data.slice(-1)[0] ? 'Rp ' + fmtRp(Math.round(chart.data.datasets[1].data.slice(-1)[0])) : '-';
+    document.getElementById('timeInfo').innerText = 'Last update — ' + new Date().toLocaleTimeString();
+  }
+  // update watchlist badges
+  const badge = document.getElementById('wl-chg-' + sym);
+  if (badge) badge.innerText = 'Rp ' + fmtRp(Math.round(price));
+}
+
+/* tick: random walk update for all instruments */
+function tick() {
+  INSTRUMENTS.forEach(sym => {
+    const prev = lastPrices[sym] || priceSeries[sym][priceSeries[sym].length-1].v;
+    let next = prev;
+
+    // Normal random walk (small percentage change)
+    // Volatility can vary: e.g., 0.001 to 0.01 (0.1% to 1%) per tick
+    const volatility = (Math.random() * 0.009 + 0.001); // Random volatility between 0.1% and 1%
+    const pct = (Math.random() - 0.5) * volatility * 2; // +/- volatility
+    next = +(prev * (1 + pct)).toFixed(2);
+
+    // --- Random Price Spike Logic ---
+    const spikeChance = 0.005; // 0.5% chance for a spike in any given tick
+    if (Math.random() < spikeChance) {
+        const spikeMagnitude = Math.random() * 0.2 + 0.05; // Spike between 5% to 25% of current price
+        const spikeDirection = Math.random() < 0.5 ? 1 : -1; // Up or down
+        next = +(prev * (1 + spikeDirection * spikeMagnitude)).toFixed(2);
+        console.log(`SPIKE! ${sym} from ${fmtRp(prev)} to ${fmtRp(next)}`);
+    }
+
+    // Ensure price doesn't go below 1 (or a reasonable minimum)
+    next = Math.max(1, next);
+
+    pushPrice(sym, next);
+
+    // --- P/L Calculation and TP/SL Check ---
+    const pos = positions[sym];
+    if (pos && pos.lots > 0) {
+        let pnl = 0;
+        if (pos.side === 'buy') {
+            pnl = (next - pos.entryPrice) * pos.lots * 100;
+        } else if (pos.side === 'sell') {
+            pnl = (pos.entryPrice - next) * pos.lots * 100;
+        }
+        pos.currentPnl = pnl; // Update current P/L for display
+
+        let closedBy = null;
+        // Check for TP
+        if (pos.tpPrice > 0) {
+            if (pos.side === 'buy' && next >= pos.tpPrice) {
+                closedBy = 'TP';
+            } else if (pos.side === 'sell' && next <= pos.tpPrice) {
+                closedBy = 'TP';
+            }
+        }
+        // Check for SL (only if not already closed by TP)
+        if (!closedBy && pos.slPrice > 0) {
+            if (pos.side === 'buy' && next <= pos.slPrice) {
+                closedBy = 'SL';
+            } else if (pos.side === 'sell' && next >= pos.slPrice) {
+                closedBy = 'SL';
+            }
+        }
+
+        if (closedBy) {
+            // Close the position
+            const realizedPnl = pnl; // P/L at the moment of closing
+            balance += realizedPnl; // Add/subtract realized P/L to balance
+
+            trades.unshift({
+                time: nowStr(),
+                side: 'close', // Indicate it's a closing trade
+                symbol: sym,
+                lots: pos.lots,
+                price: next, // Closing price
+                realizedPnl: realizedPnl,
+                closedBy: closedBy
+            });
+
+            // Reset position
+            positions[sym] = { lots: 0, avg: 0, entryPrice: 0, tpPrice: 0, slPrice: 0, currentPnl: 0, side: '' };
+            alert(`Posisi ${sym} ditutup oleh ${closedBy}! P/L: Rp ${fmtRp(realizedPnl)}`);
+        }
+    }
+  });
+  // refresh UI aggregated
+  renderWatchlist();
+  renderPositions();
+  updateBalanceUI(); // Ensure balance UI is updated with potential P/L
+}
+
+/* order execution */
+function executeOrder(side) {
+  const sym = document.getElementById('instrumentSelect').value;
+  const lots = Math.max(1, Math.floor(Number(document.getElementById('lotsInput').value) || 1));
+  const price = lastPrices[sym];
+  const tpInputVal = document.getElementById('tpInput').value;
+  const slInputVal = document.getElementById('slInput').value;
+  const tpPrice = tpInputVal ? Number(tpInputVal) : 0;
+  const slPrice = slInputVal ? Number(slInputVal) : 0;
+
+
+  if (!price) return alert('Harga belum tersedia, tunggu sebentar.');
+  const cost = price * lots * 100; // Total nilai transaksi
+
+  // Validate TP/SL
+  if (tpPrice > 0 && slPrice > 0) {
+      if (side === 'buy') {
+          if (tpPrice <= price) return alert('Untuk BUY, Take Profit harus di atas harga masuk.');
+          if (slPrice >= price) return alert('Untuk BUY, Stop Loss harus di bawah harga masuk.');
+      } else { // sell
+          if (tpPrice >= price) return alert('Untuk SELL, Take Profit harus di bawah harga masuk.');
+          if (slPrice <= price) return alert('Untuk SELL, Stop Loss harus di atas harga masuk.');
+      }
+  } else if (tpPrice > 0 && tpPrice === slPrice) {
+      return alert('Harga Take Profit dan Stop Loss tidak boleh sama.');
+  }
+
+
+  if (side === 'buy') {
+    if (cost > balance) return alert('Saldo tidak cukup.');
+    balance -= cost; // Saldo berkurang saat membeli
+    // Initialize position with new properties if it's a new position
+    if (!positions[sym]) positions[sym] = { lots: 0, avg: 0, entryPrice: 0, tpPrice: 0, slPrice: 0, currentPnl: 0, side: '' };
+
+    const pos = positions[sym];
+    // Update average entry price
+    pos.avg = pos.lots === 0 ? price : ((pos.avg * pos.lots) + (price * lots)) / (pos.lots + lots);
+    pos.lots += lots;
+    pos.entryPrice = price; // Use current price as entry for this specific order
+    pos.tpPrice = tpPrice;
+    pos.slPrice = slPrice;
+    pos.side = 'buy'; // Store the side of the position
+
+    trades.unshift({ time: nowStr(), side: 'buy', symbol: sym, lots, price, tpPrice, slPrice });
+  } else { // side === 'sell'
+    const pos = positions[sym] || { lots: 0, avg: 0, entryPrice: 0, tpPrice: 0, slPrice: 0, currentPnl: 0, side: '' };
+    if (pos.lots < lots) return alert('Lot tidak cukup untuk dijual.');
+
+    pos.lots -= lots;
+    const revenue = cost; // Revenue from selling
+    balance += revenue; // Saldo bertambah saat menjual
+
+    if (pos.lots === 0) {
+        // Reset all position details if fully closed
+        positions[sym] = { lots: 0, avg: 0, entryPrice: 0, tpPrice: 0, slPrice: 0, currentPnl: 0, side: '' };
+    } else {
+        // If partially closed, update average price (optional, depends on strategy)
+        // For simplicity, we'll just keep the existing entryPrice/TP/SL for remaining lots
+        // A more complex system would re-calculate avg entry or manage multiple entries
+    }
+    trades.unshift({ time: nowStr(), side: 'sell', symbol: sym, lots, price, revenue, tpPrice, slPrice });
+  }
+  persistAll();
+  renderPositions();
+  renderHistory();
+  updateBalanceUI();
+  // Clear TP/SL inputs after order
+  document.getElementById('tpInput').value = '';
+  document.getElementById('slInput').value = '';
+}
+
+/* deposit / withdraw modal */
+function openModal(mode) {
+  modalBackdrop.style.display = 'flex';
+  modalTitle.innerText = mode === 'deposit' ? 'Deposit' : 'Withdraw';
+  modalSubtitle.innerText = mode === 'deposit' ? 'Tambah saldo virtual' : 'Tarik saldo virtual (demo)';
+  modalAmount.value = ''; // Clear previous value
+
+  // Add event listeners for quick deposit buttons
+  document.querySelectorAll('.quick-deposit-btn').forEach(button => {
+    // Remove existing listener to prevent duplicates if modal is opened multiple times
+    const oldListener = button._listener;
+    if (oldListener) {
+      button.removeEventListener('click', oldListener);
+    }
+    const newListener = (e) => {
+      const amount = e.target.dataset.amount;
+      document.getElementById('modalAmount').value = amount;
+    };
+    button.addEventListener('click', newListener);
+    button._listener = newListener; // Store reference to the listener
+  });
+
+  modalConfirm.onclick = () => {
+    const amt = Math.max(0, Number(modalAmount.value) || 0);
+    if (amt <= 0) return alert('Masukkan jumlah yang valid.');
+
+    // NEW: Instead of directly modifying balance, create a request
+    const newRequest = {
+        id: Date.now(), // Simple unique ID
+        type: mode,
+        amount: amt,
+        time: nowStr(),
+        status: 'pending'
+    };
+    requests.unshift(newRequest); // Add to pending requests
+    persistAll(); // Save requests
+
+    alert(`Permintaan ${mode} sebesar Rp ${fmtRp(amt)} telah diajukan. Menunggu persetujuan admin.`);
+    modalBackdrop.style.display = 'none';
+    // No balance update here, it's done by admin
+    // No history update here, it's done by admin upon approval
+  };
+}
+modalCancel.onclick = ()=> modalBackdrop.style.display = 'none';
+
+/* export CSV */
+function exportCSV() {
+  const header = 'time,side,symbol,lots,price,realizedPnl,closedBy\n';
+  const rows = trades.map(t => `${t.time},${t.side},${t.symbol || ''},${t.lots || 0},${t.price || 0},${t.realizedPnl || ''},${t.closedBy || ''}`).join('\n');
+  const blob = new Blob([header + rows], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'trades.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* reset data */
+function resetData() {
+  if (!confirm('Reset semua data demo (saldo, positions, history)?')) return;
+  localStorage.removeItem(LS.BAL);
+  localStorage.removeItem(LS.POS);
+  localStorage.removeItem(LS.TR);
+  localStorage.removeItem(LS.REQ); // NEW: Clear requests on reset
+  localStorage.removeItem(LS.PRICES);
+  location.reload();
+}
+
+/* UI updates */
+function updateBalanceUI() {
+  let totalUnrealizedPnl = 0;
+  for (const sym in positions) {
+      const pos = positions[sym];
+      if (pos.lots > 0) {
+          const currentPrice = lastPrices[sym];
+          if (currentPrice && pos.entryPrice) {
+              let pnl = 0;
+              if (pos.side === 'buy') {
+                  pnl = (currentPrice - pos.entryPrice) * pos.lots * 100;
+              } else if (pos.side === 'sell') {
+                  pnl = (pos.entryPrice - currentPrice) * pos.lots * 100;
+              }
+              totalUnrealizedPnl += pnl;
+          }
+      }
+  }
+  // Display balance + unrealized P/L
+  balanceAmountEl.innerText = 'Rp ' + fmtRp(Math.round(balance + totalUnrealizedPnl));
+}
+
+/* symbol change handler */
+async function onSymbolChange(sym) {
+  activeSymbol = sym;
+  symbolNameEl.innerText = sym;
+  // refresh chart dataset
+  if (!priceSeries[sym] || priceSeries[sym].length === 0) seedMarket();
+  if (chart) {
+    chart.data.labels = priceSeries[sym].map(d => new Date(d.t).toLocaleTimeString());
+    chart.data.datasets[0].data = priceSeries[sym].map(d => d.v);
+    chart.data.datasets[1].data = computeMA(sym);
+    chart.update();
+  } else {
+    initChart();
+  }
+  renderPositions();
+  renderHistory();
+}
+
+/* UI wiring */
+document.getElementById('buyBtn').addEventListener('click', ()=> executeOrder('buy'));
+document.getElementById('sellBtn').addEventListener('click', ()=> executeOrder('sell'));
+document.getElementById('depositBtn').addEventListener('click', ()=> openModal('deposit'));
+document.getElementById('withdrawBtn').addEventListener('click', ()=> openModal('withdraw'));
+document.getElementById('resetBtn').addEventListener('click', resetData);
+document.getElementById('exportBtn').addEventListener('click', exportCSV);
+document.getElementById('instrumentSelect').addEventListener('change', (e)=> onSymbolChange(e.target.value));
+document.getElementById('maLen').addEventListener('change', ()=> {
+  if (chart) {
+    chart.data.datasets[1].data = computeMA(activeSymbol);
+    chart.update();
+  }
+});
+document.getElementById('timeframeSelect').addEventListener('change', ()=> {
+  // For demo we keep tick 1s. Timeframe selection only affects label.
+  // Could be extended to change tick interval or step.
+  document.getElementById('modePill').innerText = 'Demo (Fake Market)';
+});
+
+/* start demo tick */
+function startTick(intervalMs = 1000) {
+  if (tickTimer) clearInterval(tickTimer);
+  tickTimer = setInterval(tick, intervalMs);
+}
+
+/* app init */
+function initApp() {
+  // load persisted
+  balance = Number(localStorage.getItem(LS.BAL)) || DEFAULT_BAL;
+  positions = JSON.parse(localStorage.getItem(LS.POS)) || {};
+  trades = JSON.parse(localStorage.getItem(LS.TR)) || (trades = []);
+  requests = JSON.parse(localStorage.getItem(LS.REQ)) || (requests = []); // NEW: Load requests
+  lastPrices = JSON.parse(localStorage.getItem(LS.PRICES)) || {};
+  // seed market & init prices
+  seedMarket();
+  renderWatchlist();
+  updateBalanceUI();
+  renderPositions();
+  renderHistory();
+  initChart();
+  onSymbolChange(activeSymbol);
+  startTick(1000); // 1s tick
+
+  // Quick deposit buttons are now initialized inside openModal()
+}
+
+/* bootstrap */
+initApp();
+
+</script>
+</body>
+</html>

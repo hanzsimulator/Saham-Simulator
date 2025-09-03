@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hanzsimulator - Login</title>
+    <link rel="icon" type="image/x-icon" href="ft.png">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>body {
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: linear-gradient(135deg, #1f1f1f, #333333);
+    margin: 0;
+    color: #f0f0f0;
+}
+
+.login-container {
+    background-color: #2a2a2a;
+    padding: 2.5rem;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(9, 18, 56, 0.5);
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    border: 1px solid #444;
+}
+
+.login-box h2 {
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+
+.input-group {
+    margin-bottom: 1rem;
+    text-align: left;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #c0c0c0;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 8px;
+    border: 1px solid #555;
+    background-color: #3b3b3b;
+    color: #f0f0f0;
+    transition: border-color 0.3s;
+    box-sizing: border-box;
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: #6a82fb;
+}
+
+.login-button {
+    width: 100%;
+    padding: 0.85rem;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #6a82fb, #3371ff);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    margin-top: 1rem;
+}
+
+.login-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(51, 113, 255, 0.4);
+}
+
+#message {
+    margin-top: 1.5rem;
+    font-weight: 500;
+}
+
+.error-message {
+    color: #ff6b6b;
+}
+
+.success-message {
+    color: #48bb78;
+}
+
+.popup-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: none; /* Defaultnya disembunyikan */
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.popup-content {
+    background-color: #2a2a2a;
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    width: 90%;
+    max-width: 400px;
+    position: relative;
+    border: 1px solid #444;
+}
+
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    color: #f0f0f0;
+    font-size: 2rem;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.close-btn:hover {
+    color: #ff6b6b;
+}
+
+.popup-content h3 {
+    margin-top: 0;
+    font-weight: 600;
+}
+
+.popup-content p {
+    margin: 1rem 0;
+}
+
+.popup-success .popup-content {
+    border-top: 5px solid #48bb78;
+}
+
+.popup-error .popup-content {
+    border-top: 5px solid #ff6b6b;
+}</style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <h2>Hanzsimulator - Login</h2>
+            <form id="loginForm">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="login-button">Login</button>
+            </form>
+            <p id="message"></p>
+        </div>
+    </div>
+    
+    <div id="popup" class="popup-container">
+        <div class="popup-content">
+            <span class="close-btn">&times;</span>
+            <h3 id="popup-title"></h3>
+            <p id="popup-message"></p>
+        </div>
+    </div>
+
+    <script>document.getElementById('loginForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+
+    const usernameInput = document.getElementById('username').value;
+    const passwordInput = document.getElementById('password').value;
+    const messageElement = document.getElementById('message');
+    const popupContainer = document.getElementById('popup');
+    const popupTitle = document.getElementById('popup-title');
+    const popupMessage = document.getElementById('popup-message');
+
+    // Kredensial yang sudah ditentukan
+    const validUsername = 'hanzsimulator';
+    const validPassword = 'hanzsimulator';
+
+    if (usernameInput === validUsername && passwordInput === validPassword) {
+        popupTitle.textContent = 'Berhasil!';
+        popupMessage.textContent = 'Selamat datang, hanzsimulator!';
+        popupContainer.className = 'popup-container popup-success';
+        popupContainer.style.display = 'flex';
+        
+        messageElement.textContent = '';
+
+        window.location.href = 'dashboard.html';
+    } else {
+        popupTitle.textContent = 'Gagal!';
+        popupMessage.textContent = 'Username atau password salah.';
+        popupContainer.className = 'popup-container popup-error';
+        popupContainer.style.display = 'flex';
+        
+        messageElement.textContent = '';
+    }
+});
+
+document.querySelector('.close-btn').addEventListener('click', function() {
+    document.getElementById('popup').style.display = 'none';
+});
+
+window.addEventListener('click', function(event) {
+    const popupContainer = document.getElementById('popup');
+    if (event.target == popupContainer) {
+        popupContainer.style.display = 'none';
+    }
+});</script>
+</body>
+</html>

@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hanz Simulator — Admin Panel</title>
+  <link rel="icon" type="image/x-icon" href="ft.png">
+
+  <style>
+    /* Basic Admin Panel Styles - Reusing some from saham.html for consistency */
+    :root{
+      --bg: #07121a;
+      --card: linear-gradient(180deg,#0f1b26 0%, #0b1620 100%);
+      --muted: #9fb0c7;
+      --accent: #f6c85f;
+      --accent-2: #58a6ff;
+      --glass: rgba(255,255,255,0.03);
+      --success: #2ea043;
+      --danger: #f44753;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background: radial-gradient(1200px 400px at 10% 10%, rgba(9,20,30,0.6), transparent),
+                  radial-gradient(900px 300px at 90% 90%, rgba(8,12,20,0.6), transparent),
+                  var(--bg);
+      color: #e6eef6;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding: 24px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(3,8,15,0.6);
+      border: 1px solid rgba(255,255,255,0.02);
+      margin-bottom: 20px;
+    }
+    .header {
+      display:flex; align-items:center; gap:12px; margin-bottom: 15px;
+    }
+    .logo {
+      font-weight:800; color:var(--accent); font-size:24px;
+    }
+    .small { font-size:13px; color:var(--muted) }
+    .section-title {
+      font-weight:800; font-size:18px; margin-bottom: 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px dashed rgba(255,255,255,0.02);
+      font-size: 14px;
+    }
+    th {
+      color: var(--accent);
+    }
+    .trade-btn {
+      padding:8px 12px; border-radius:8px; border:none; cursor:pointer; font-weight:700;
+      margin-left: 5px;
+    }
+    .trade-btn.approve { background: var(--success); color: #041219; }
+    .trade-btn.reject { background: var(--danger); color: white; }
+    .trade-btn.reset { background: #0f1720; border:1px solid rgba(255,255,255,0.04); color:var(--muted); }
+    .green { color:var(--success); font-weight:800 }
+    .red { color:var(--danger); font-weight:800 }
+    .status-pending { color: var(--accent); }
+    .status-approved { color: var(--success); }
+    .status-rejected { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">Hanz Simulator — Admin Panel</div>
+      <div class="small">Manage user data and requests</div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">User Account Summary</div>
+      <p class="small">Current Balance: <span id="adminBalance" style="font-size:16px; font-weight:bold;">Rp 0</span></p>
+      <button id="resetUserBtn" class="trade-btn reset">Reset User Data</button>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Pending Deposit/Withdraw Requests</div>
+      <table id="requestsTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Time</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Requests will be injected here -->
+        </tbody>
+      </table>
+      <p id="noRequests" class="small" style="margin-top:10px; text-align:center; display:none;">No pending requests.</p>
+    </div>
+
+    <div class="card">
+      <div class="section-title">All Trade Activities</div>
+      <table id="tradesTable">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Symbol</th>
+            <th>Lots</th>
+            <th>Price</th>
+            <th>P/L</th>
+            <th>Closed By</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Trades will be injected here -->
+        </tbody>
+      </table>
+      <p id="noTrades" class="small" style="margin-top:10px; text-align:center; display:none;">No trade activities yet.</p>
+    </div>
+  </div>
+
+<script>
+const LS = {
+  BAL: 'premium_sim_balance_v1',
+  POS: 'premium_sim_positions_v1',
+  TR: 'premium_sim_trades_v1',
+  REQ: 'premium_sim_requests_v1',
+  PRICES: 'premium_sim_prices_v1'
+};
+
+let balance = Number(localStorage.getItem(LS.BAL)) || 0; // Admin panel starts with 0 if no user data
+let trades = JSON.parse(localStorage.getItem(LS.TR)) || [];
+let requests = JSON.parse(localStorage.getItem(LS.REQ)) || [];
+
+/* UI refs */
+const adminBalanceEl = document.getElementById('adminBalance');
+const requestsTableBody = document.querySelector('#requestsTable tbody');
+const tradesTableBody = document.querySelector('#tradesTable tbody');
+const noRequestsEl = document.getElementById('noRequests');
+const noTradesEl = document.getElementById('noTrades');
+
+/* helpers */
+const fmtRp = v => {
+  if (typeof v !== 'number') return v;
+  return v.toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+};
+const nowStr = () => new Date().toLocaleString();
+
+/* Render Functions */
+function renderAdminBalance() {
+  adminBalanceEl.innerText = 'Rp ' + fmtRp(balance);
+}
+
+function renderRequests() {
+  requestsTableBody.innerHTML = '';
+  if (requests.length === 0) {
+    noRequestsEl.style.display = 'block';
+    requestsTableBody.style.display = 'none';
+    return;
+  }
+  noRequestsEl.style.display = 'none';
+  requestsTableBody.style.display = 'table-row-group';
+
+  requests.forEach(req => {
+    const row = requestsTableBody.insertRow();
+    row.innerHTML = `
+      <td>${req.id}</td>
+      <td>${req.type.charAt(0).toUpperCase() + req.type.slice(1)}</td>
+      <td>Rp ${fmtRp(req.amount)}</td>
+      <td>${req.time}</td>
+      <td class="status-${req.status}">${req.status.charAt(0).toUpperCase() + req.status.slice(1)}</td>
+      <td>
+        ${req.status === 'pending' ? `
+          <button class="trade-btn approve" data-id="${req.id}" data-type="${req.type}" data-amount="${req.amount}">Approve</button>
+          <button class="trade-btn reject" data-id="${req.id}">Reject</button>
+        ` : ''}
+      </td>
+    `;
+  });
+
+  // Add event listeners for new buttons
+  requestsTableBody.querySelectorAll('.approve').forEach(button => {
+    button.addEventListener('click', handleApproveRequest);
+  });
+  requestsTableBody.querySelectorAll('.reject').forEach(button => {
+    button.addEventListener('click', handleRejectRequest);
+  });
+}
+
+function renderTrades() {
+  tradesTableBody.innerHTML = '';
+  if (trades.length === 0) {
+    noTradesEl.style.display = 'block';
+    tradesTableBody.style.display = 'none';
+    return;
+  }
+  noTradesEl.style.display = 'none';
+  tradesTableBody.style.display = 'table-row-group';
+
+  trades.forEach(trade => {
+    const row = tradesTableBody.insertRow();
+    const pnlClass = trade.realizedPnl >= 0 ? 'green' : 'red';
+    const pnlText = trade.realizedPnl !== undefined ? fmtRp(trade.realizedPnl) : '-';
+
+    row.innerHTML = `
+      <td>${trade.time}</td>
+      <td>${trade.side.toUpperCase()}</td>
+      <td>${trade.symbol || '-'}</td>
+      <td>${trade.lots || '-'}</td>
+      <td>${trade.price ? 'Rp ' + fmtRp(Math.round(trade.price)) : '-'}</td>
+      <td class="${pnlClass}">${pnlText}</td>
+      <td>${trade.closedBy || '-'}</td>
+    `;
+  });
+}
+
+/* Event Handlers */
+function handleApproveRequest(event) {
+  const id = Number(event.target.dataset.id);
+  const type = event.target.dataset.type;
+  const amount = Number(event.target.dataset.amount);
+
+  const reqIndex = requests.findIndex(req => req.id === id);
+  if (reqIndex > -1) {
+    const req = requests[reqIndex];
+    req.status = 'approved';
+
+    // Update user's balance
+    if (type === 'deposit') {
+      balance += amount;
+    } else if (type === 'withdraw') {
+      if (balance < amount) {
+        alert('Saldo pengguna tidak cukup untuk withdraw ini. Permintaan ditolak.');
+        req.status = 'rejected'; // Change status to rejected if balance is insufficient
+      } else {
+        balance -= amount;
+      }
+    }
+
+    // Add to trades history (as an approved transaction)
+    trades.unshift({
+      time: nowStr(),
+      side: type,
+      symbol: '-',
+      lots: 0,
+      price: amount,
+      status: 'approved' // Mark as approved in history
+    });
+
+    persistAllData();
+    renderAdminBalance();
+    renderRequests();
+    renderTrades();
+    alert(`Permintaan ${type} ID ${id} sebesar Rp ${fmtRp(amount)} telah disetujui.`);
+  }
+}
+
+function handleRejectRequest(event) {
+  const id = Number(event.target.dataset.id);
+  const reqIndex = requests.findIndex(req => req.id === id);
+  if (reqIndex > -1) {
+    requests[reqIndex].status = 'rejected';
+    persistAllData();
+    renderRequests();
+    alert(`Permintaan ID ${id} telah ditolak.`);
+  }
+}
+
+function resetUserData() {
+  if (confirm('Apakah Anda yakin ingin mereset semua data pengguna (saldo, posisi, transaksi, permintaan)? Ini tidak dapat dibatalkan.')) {
+    localStorage.removeItem(LS.BAL);
+    localStorage.removeItem(LS.POS);
+    localStorage.removeItem(LS.TR);
+    localStorage.removeItem(LS.REQ);
+    localStorage.removeItem(LS.PRICES);
+    location.reload(); // Reload admin panel to reflect reset
+  }
+}
+
+/* Persistence */
+function persistAllData() {
+  localStorage.setItem(LS.BAL, String(balance));
+  localStorage.setItem(LS.TR, JSON.stringify(trades));
+  localStorage.setItem(LS.REQ, JSON.stringify(requests));
+  // Note: POS and PRICES are managed by saham.html, but we read them here.
+  // We only write BAL, TR, REQ from admin panel.
+}
+
+/* Initialization */
+function initAdminPanel() {
+  // Load initial data
+  balance = Number(localStorage.getItem(LS.BAL)) || 0;
+  trades = JSON.parse(localStorage.getItem(LS.TR)) || [];
+  requests = JSON.parse(localStorage.getItem(LS.REQ)) || [];
+
+  renderAdminBalance();
+  renderRequests();
+  renderTrades();
+
+  document.getElementById('resetUserBtn').addEventListener('click', resetUserData);
+}
+
+// Run initialization
+initAdminPanel();
+</script>
+</body>
+</html>
